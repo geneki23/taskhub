@@ -1,23 +1,27 @@
 import React, { useState } from 'react';
-import { Head } from '@inertiajs/react';
+import { Head, router } from '@inertiajs/react'; // Import router
 import TaskStats from '@/Components/TaskStats';
 import TaskItem from '@/Components/TaskItem';
 
-export default function Welcome() {
-    const [tasks, setTasks] = useState([]);
+export default function Welcome({ tasks }) { // Receive tasks from props
     const [newTaskTitle, setNewTaskTitle] = useState('');
+    const [processing, setProcessing] = useState(false);
 
     const addTask = () => {
-        if (newTaskTitle.trim() === '') return;
+        if (newTaskTitle.trim() === '' || processing) return;
 
-        const newTask = {
-            id: Date.now(), // Generate a unique ID based on timestamp
-            title: newTaskTitle,
-            is_completed: false,
-        };
-
-        setTasks([...tasks, newTask]);
-        setNewTaskTitle('');
+        setProcessing(true);
+        router.post('/tasks', {
+            title: newTaskTitle
+        }, {
+            preserveScroll: true,
+            onSuccess: () => {
+                setNewTaskTitle('');
+                setProcessing(false);
+            },
+            onError: () => setProcessing(false),
+            onFinish: () => setProcessing(false) // Safety
+        });
     };
 
     const handleKeyDown = (e) => {
@@ -27,19 +31,28 @@ export default function Welcome() {
     };
 
     const toggleTask = (id) => {
-        setTasks(tasks.map(task =>
-            task.id === id ? { ...task, is_completed: !task.is_completed } : task
-        ));
+        const task = tasks.find(t => t.id === id);
+        router.patch(route('tasks.update', id), {
+            is_completed: !task.is_completed
+        }, {
+            preserveScroll: true
+        });
     };
 
     const updateTaskTitle = (id, newTitle) => {
-        setTasks(tasks.map(task =>
-            task.id === id ? { ...task, title: newTitle } : task
-        ));
+        router.patch(route('tasks.update', id), {
+            title: newTitle
+        }, {
+            preserveScroll: true
+        });
     };
 
     const clearCompleted = () => {
-        setTasks(tasks.filter(task => !task.is_completed));
+        if (confirm('¿Estás seguro de querer borrar todas las tareas completadas?')) {
+            router.delete(route('tasks.clear'), {
+                preserveScroll: true
+            });
+        }
     };
 
     const totalTasks = tasks.length;
@@ -62,7 +75,7 @@ export default function Welcome() {
                             </h1>
                         </div>
                         <p className="mt-2 text-sm text-gray-600">
-                            Organiza tu trabajo de manera eficiente
+                            Organiza tu trabajo de manera eficiente (Con persistencia en BD)
                         </p>
                     </div>
 
@@ -78,14 +91,15 @@ export default function Welcome() {
                                 onChange={(e) => setNewTaskTitle(e.target.value)}
                                 onKeyDown={handleKeyDown}
                                 placeholder="Añadir nueva tarea"
-                                className="flex-1 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm px-4 py-3 border"
+                                disabled={processing}
+                                className="flex-1 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm px-4 py-3 border disabled:bg-gray-50"
                             />
                             <button
                                 onClick={addTask}
-                                disabled={newTaskTitle.trim() === ''}
+                                disabled={newTaskTitle.trim() === '' || processing}
                                 className="inline-flex items-center px-6 py-3 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                             >
-                                Añadir
+                                {processing ? 'Añadiendo...' : 'Añadir'}
                             </button>
                         </div>
                     </div>
